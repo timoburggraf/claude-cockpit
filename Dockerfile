@@ -32,13 +32,14 @@ RUN userdel -r node 2>/dev/null || true \
 
 # npm-Global-Pfade an cockpit übertragen, damit Auto-Updates funktionieren.
 # Claude Code ruft intern `npm update -g @anthropic-ai/claude-code` auf;
-# ohne diese Berechtigungen scheitert das mit "No write permissions".
+# npm braucht dafür Schreibrechte sowohl auf die Dateien als auch auf die
+# Verzeichnisse selbst (rename = create new + unlink old im Parent-Dir).
+# Im Image liegen in /usr/local/bin nur node, npm, npx, claude, ttyd —
+# alle sicherheitlich unkritisch für cockpit-Ownership.
 RUN chown -R cockpit:cockpit \
         /usr/local/lib/node_modules \
-        /usr/local/bin/claude \
-        /usr/local/bin/npm \
-        /usr/local/bin/npx \
-        /usr/local/bin/node 2>/dev/null || true
+        /usr/local/bin \
+        /usr/local/share
 
 COPY tmux.conf /etc/tmux.conf
 COPY bin/claude-mode /usr/local/bin/claude-mode
