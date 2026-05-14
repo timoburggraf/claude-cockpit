@@ -49,8 +49,19 @@ echo "Beende aktuelle Claude-Instanz und starte neu..."
 tmux send-keys -t cockpit '/exit' Enter
 sleep 1
 
-tmux send-keys -t cockpit \
-    "export CLAUDE_AUTH_MODE=${NEW_MODE} && claude" \
-    Enter
+if [[ "${NEW_MODE}" == "api" ]]; then
+    if [[ ! -f /secrets/anthropic.key ]]; then
+        echo "FEHLER: /secrets/anthropic.key fehlt. API-Mode nicht startbar." >&2
+        exit 1
+    fi
+    tmux send-keys -t cockpit \
+        "export CLAUDE_AUTH_MODE=api && export ANTHROPIC_API_KEY=\$(cat /secrets/anthropic.key) && claude --dangerously-skip-permissions" \
+        Enter
+else
+    # subscription: ANTHROPIC_API_KEY entfernen, damit .credentials.json greift
+    tmux send-keys -t cockpit \
+        "export CLAUDE_AUTH_MODE=subscription && unset ANTHROPIC_API_KEY && claude --dangerously-skip-permissions" \
+        Enter
+fi
 
 echo "Claude neu gestartet mit Modus '${NEW_MODE}'."
