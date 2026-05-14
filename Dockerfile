@@ -39,6 +39,14 @@ RUN chmod 644 /etc/tmux.conf \
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod 755 /entrypoint.sh
 
+# /home/cockpit gehört dem cockpit-User; Volume-Mounts mit cockpit:cockpit-Owner
+# (UID/GID 1000) passen damit ohne Umwege.
+RUN chown -R cockpit:cockpit /home/cockpit
+
 WORKDIR /workspace
+
+# claude --dangerously-skip-permissions verweigert den Start als root.
+# Daher läuft der gesamte Container ab hier als non-root cockpit-User.
+USER cockpit
 
 ENTRYPOINT ["/entrypoint.sh"]
