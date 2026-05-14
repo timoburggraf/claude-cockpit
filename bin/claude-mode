@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE_FILE="/home/cockpit/.claude/cockpit-mode"
+
+usage() {
+    echo "Verwendung: claude-mode [subscription|api]"
+    echo "Ohne Argument: zeigt aktuellen Modus"
+}
+
+current_mode() {
+    if [[ -f "${MODE_FILE}" ]]; then
+        cat "${MODE_FILE}"
+    else
+        echo "subscription"
+    fi
+}
+
+if [[ $# -eq 0 ]]; then
+    echo "Aktueller Modus: $(current_mode)"
+    exit 0
+fi
+
+NEW_MODE="$1"
+
+if [[ "${NEW_MODE}" != "subscription" && "${NEW_MODE}" != "api" ]]; then
+    echo "FEHLER: Ungueltiger Modus '${NEW_MODE}' (erlaubt: subscription|api)" >&2
+    usage >&2
+    exit 1
+fi
+
+OLD_MODE=$(current_mode)
+
+if [[ "${NEW_MODE}" == "${OLD_MODE}" ]]; then
+    echo "Modus ist bereits '${NEW_MODE}', keine Aenderung."
+    exit 0
+fi
+
+echo "${NEW_MODE}" > "${MODE_FILE}"
+echo "Modus geaendert: ${OLD_MODE} -> ${NEW_MODE}"
+
+if ! tmux has-session -t cockpit 2>/dev/null; then
+    echo "WARNUNG: tmux-Session 'cockpit' nicht gefunden. Modus gespeichert, kein Neustart." >&2
+    exit 0
+fi
+
+echo "Beende aktuelle Claude-Instanz und starte neu..."
+
+tmux send-keys -t cockpit '/exit' Enter
+sleep 1
+
+tmux send-keys -t cockpit \
+    "export CLAUDE_AUTH_MODE=${NEW_MODE} && claude" \
+    Enter
+
+echo "Claude neu gestartet mit Modus '${NEW_MODE}'."

@@ -1,0 +1,46 @@
+# deploy.config — lokale Deploy-Konfiguration für Claude Code Cockpit
+#
+# Kopiere diese Datei nach `deploy.config` und passe die Werte an dein Setup an.
+# `deploy.config` ist in .gitignore und wird nicht committed.
+#
+# Alle Variablen sind optional — Defaults sind in deploy.sh hinterlegt.
+
+# ---------------------------------------------------------------------------
+# Zielsystem (SSH)
+# ---------------------------------------------------------------------------
+PI_HOST="192.168.0.225"
+PI_PORT="22222"
+PI_USER="timoburggraf81"
+
+# ---------------------------------------------------------------------------
+# Pfade auf dem Pi
+# ---------------------------------------------------------------------------
+# Pfad aus SSH-Container-Sicht (HA-OS-Add-on)
+REMOTE_BASE="/homeassistant/claude-cockpit"
+
+# Pfad aus Host-Docker-Sicht (für docker run -v)
+HOST_BASE="/mnt/data/supervisor/homeassistant/claude-cockpit"
+HOST_WORKSPACE="/mnt/data/supervisor/homeassistant/home-assistant-v2"
+
+# ---------------------------------------------------------------------------
+# Netzwerk / ttyd
+# ---------------------------------------------------------------------------
+NETBIRD_IFACE="wt0"
+TTYD_PORT="7681"
+TTYD_USER="cockpit"
+
+# ---------------------------------------------------------------------------
+# Container
+# ---------------------------------------------------------------------------
+CONTAINER_NAME="claude-cockpit"
+IMAGE_TAG="claude-cockpit:local"
+CLAUDE_AUTH_MODE="subscription"
+
+# ---------------------------------------------------------------------------
+# Vault-Integration (optional)
+# ---------------------------------------------------------------------------
+# Wenn gesetzt, holt deploy.sh den ttyd-Token aus diesem Vault-Befehl
+# und schreibt ihn auf den Pi.
+#
+# Beispiel für den Projekt-eigenen Fernet-Vault unter C:\Projekte\tools\vault:
+# VAULT_GET_CMD='C:/Projekte/tools/vault/venv/Scripts/python C:/Projekte/tools/vault/vault.py get CLAUDE_COCKPIT_TTYD_TOKEN'

@@ -1,0 +1,35 @@
+# REFERENZ — auf HA OS aktuell NICHT direkt nutzbar.
+#
+# Stand 2026-05-14: Auf dem Pi (HA OS) ist weder `docker compose` (V2 Plugin)
+# noch `docker-compose` (V1 Binary) installiert. Der Container wird stattdessen
+# über `deploy.sh` mit `sudo docker build` + `sudo docker run` gestartet.
+#
+# Diese Datei dient als kanonische Konfigurations-Referenz:
+# - alle Volume-Pfade entsprechen den Host-Pfaden (`/mnt/data/supervisor/...`)
+# - falls später `docker compose` installiert wird, kann dies 1:1 genutzt werden
+#
+# Pfad-Unterscheidung beachten:
+#   SSH-Container-Sicht  : /homeassistant/...
+#   Host-Docker-Sicht    : /mnt/data/supervisor/homeassistant/...
+# `docker run -v` interpretiert Pfade aus Host-Sicht.
+
+version: "3.8"
+
+services:
+
+  claude-cockpit:
+    build: .
+    image: claude-cockpit:local
+    container_name: claude-cockpit
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - /mnt/data/supervisor/homeassistant/home-assistant-v2:/workspace:rw
+      - /mnt/data/supervisor/homeassistant/claude-cockpit/claude-config:/home/cockpit/.claude:rw
+      - /mnt/data/supervisor/homeassistant/claude-cockpit/secrets:/secrets:ro
+    environment:
+      CLAUDE_AUTH_MODE: "subscription"
+      TTYD_PORT: "7681"
+      TTYD_USER: "cockpit"
+      NETBIRD_IFACE: "wt0"
+      # TTYD_TOKEN wird aus /secrets/ttyd.cred gelesen

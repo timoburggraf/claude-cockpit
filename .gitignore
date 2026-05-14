@@ -1,0 +1,18 @@
+# Lokale Deploy-Konfiguration (enthält Pi-Daten, kein Public-Material)
+deploy.config
+
+# Auth-Files dürfen NIEMALS ins Repo
+secrets/
+*.cred
+*.key
+.credentials.json
+
+# Tmp/State
+*.swp
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
