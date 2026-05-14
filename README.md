@@ -108,14 +108,25 @@ Beim ersten Browser-Zugriff zeigt Claude Code einen Theme-Wizard und Security-No
 
 ## Sicherheits-Konzept
 
-### Phase 1: Read-only
+### Default: Full-Power-Modus
 
-`claude-config/settings.json` blockt strukturell alle Schreibtools:
+Claude Code startet im Cockpit-Container mit `--dangerously-skip-permissions`. Damit sind **alle** Tool-Restriktionen aufgehoben — keine Permission-Prompts, kein Filter über `settings.json`. Claude darf im Container schreiben, editieren, beliebige Bash-Befehle ausführen und HTTP-Aufrufe machen.
 
-- **Erlaubt:** `Read`, `Glob`, `Grep`, und lesende Bash-Befehle (`git status/diff/log/show`, `ls`, `cat`, `head`, `tail`, `rg`, `grep`, `find`).
-- **Verweigert:** `Write`, `Edit`, `NotebookEdit`, sowie gefährliches Bash (`sudo`, `rm`, `mv`, `cp`, `ssh`, `docker`, `systemctl`, `reboot`, `shutdown`, schreibende `curl`-Aufrufe).
+Begründung: Cockpit wird produktiv für Analyse **und** Code-Änderungen genutzt; die Read-only-Phase aus dem ursprünglichen Plan hat sich in der Praxis als reibend erwiesen. Stattdessen kommt die Sicherheitsschicht vom **Container-Sandboxing**:
 
-Claude kann also analysieren und Pläne schreiben — aber nichts ändern. Deploys laufen weiterhin über den klassischen Laptop-Workflow.
+| Was bleibt geschützt | Warum |
+|---|---|
+| Live-HA-Configs (`/homeassistant/automations/`, Templates) | nicht ins Volume gemountet |
+| SSH zum Pi-Host | kein SSH-Key im Container |
+| `sudo` auf dem Pi | `sudo` ist nicht im Image installiert |
+| Docker-Daemon-Operationen | Socket nicht im Container gemountet |
+| `/secrets/*` | read-only Mount, kann nicht überschrieben werden |
+
+Schreibzugriff von Claude betrifft praktisch nur das gemountete `/workspace` (= Repo-Mirror auf dem Pi). Git-History trackt alles, Rollback ist immer möglich.
+
+### `settings.json` als Fallback
+
+`claude-config/settings.json` enthält weiterhin die ursprünglichen Read-only-Permissions. Solange `--dangerously-skip-permissions` aktiv ist, hat das keine Wirkung. Wer den Container ohne das Flag starten möchte (z. B. um auf eine reine Analyse-Stufe zurückzufallen), entfernt das Flag in `entrypoint.sh` — die Restriktionen greifen dann sofort wieder.
 
 ### Auth-Layer
 
@@ -123,9 +134,21 @@ Claude kann also analysieren und Pläne schreiben — aber nichts ändern. Deplo
 2. **ttyd-HTTP-Basic-Auth** als zweite Schicht — User + Token aus der `secrets/ttyd.cred`-Datei.
 3. **Anthropic-Auth** über persistente `.credentials.json` (Subscription) oder `anthropic.key` (API-Key) im gemounteten Volume.
 
+### Optional: Home-Assistant-Token
+
+Wenn `/secrets/ha.token` existiert, exportiert `entrypoint.sh` den Inhalt als Umgebungsvariable `HA_TOKEN` in die tmux-Session. Claude kann damit ohne weitere Konfiguration gegen die HA REST API gehen (`curl -H "Authorization: Bearer $HA_TOKEN" http://localhost:8123/api/...`).
+
+Empfehlung: Long-Lived Access Token in HA generieren (Profil → Sicherheit), in den Vault legen, beim Deploy ins secrets-Volume schreiben:
+
+```bash
+vault get HA_TOKEN | ssh ... "cat > /homeassistant/claude-cockpit/secrets/ha.token && chmod 600 ..."
+```
+
+Damit hat Claude im Cockpit Vollzugriff auf HA-Entitäten — bewusste Entscheidung, weil der Container-Stack ohnehin produktiv genutzt wird.
+
 ### Secrets-Management
 
-Geheime Daten (ttyd-Token, API-Keys) dürfen **niemals** ins Repo committed werden. `.gitignore` schließt das `secrets/`-Verzeichnis und alle `*.cred`/`*.key`-Dateien aus.
+Geheime Daten (ttyd-Token, API-Keys, HA-Token) dürfen **niemals** ins Repo committed werden. `.gitignore` schließt das `secrets/`-Verzeichnis und alle `*.cred`/`*.key`-Dateien aus.
 
 Für die Token-Verwaltung empfiehlt sich ein verschlüsselter Secret-Vault (z. B. `cryptography.fernet`-basiert). Die Vault-Integration in `deploy.sh` ist über `VAULT_GET_CMD` aktivierbar.
 
@@ -170,13 +193,18 @@ Tmux fängt Mausereignisse ab. Lösungen:
 
 ## Roadmap
 
-### Phase 1 (umgesetzt)
-- Browser-Terminal über VPN, Read-only-Permissions, persistente Sessions
+### Umgesetzt
+- Browser-Terminal über VPN-Mesh (Netbird/Tailscale)
+- Persistente tmux-Session, geteilt zwischen mehreren Geräten
+- Subscription- + API-Auth-Modus, umschaltbar zur Laufzeit (`claude-mode`)
+- Full-Power-Modus über `--dangerously-skip-permissions` (Default)
+- Optionale Home-Assistant-Token-Injektion (`/secrets/ha.token`)
+- Vault-Integration im `deploy.sh` (`VAULT_GET_CMD`)
 
-### Phase 2 (geplant)
-- Apply-Modus mit Confirm-UI (Diff-Viewer, Bestätigungs-Buttons)
-- Operate-Modus für Service-Restarts mit Allowlist und Audit-Log
-- Optionale eigene Web-UI als Aufsatz auf das ttyd-Backend (für Mobile-Komfort)
+### Mögliche Erweiterungen
+- Confirm-UI für gefährliche Aktionen (Diff-Viewer, Apply-Button) — falls man eine Stufe zwischen "alles erlauben" und "gar nichts erlauben" möchte
+- Eigene Web-UI als Aufsatz auf ttyd, falls Mobile-Bedienkomfort wichtig wird
+- Audit-Log für ausgeführte Bash-Befehle
 
 ### Out of Scope
 - Datenpipeline für historische HA-Daten (InfluxDB/Parquet) — gehört in ein separates Projekt

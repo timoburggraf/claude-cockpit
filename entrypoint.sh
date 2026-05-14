@@ -27,6 +27,17 @@ mkdir -p /home/cockpit/.claude
 echo "${CLAUDE_AUTH_MODE}" > /home/cockpit/.claude/cockpit-mode
 
 # ---------------------------------------------------------------------------
+# Home-Assistant-Token (optional)
+# Wenn /secrets/ha.token existiert, als HA_TOKEN ins tmux-Env exportieren.
+# Claude kann damit direkt gegen die HA REST API gehen.
+# ---------------------------------------------------------------------------
+HA_TOKEN=""
+if [[ -f /secrets/ha.token ]]; then
+    HA_TOKEN=$(tr -d '\n\r' < /secrets/ha.token)
+    echo "[cockpit] HA_TOKEN aus /secrets/ha.token geladen (${#HA_TOKEN} Zeichen)"
+fi
+
+# ---------------------------------------------------------------------------
 # ttyd-Token
 # ---------------------------------------------------------------------------
 if [[ -z "${TTYD_TOKEN:-}" ]]; then
@@ -63,16 +74,26 @@ fi
 
 # ---------------------------------------------------------------------------
 # tmux-Session starten
+#
+# WICHTIG: Claude Code laeuft mit --dangerously-skip-permissions.
+# Damit sind alle Tool-Restriktionen (Write/Edit/gefaehrliches Bash) aufgehoben.
+# Die settings.json bleibt als Doku / Fallback im Volume, ist aber inaktiv,
+# solange das Flag gesetzt ist.
 # ---------------------------------------------------------------------------
 export CLAUDE_AUTH_MODE
+export HA_TOKEN
+
+CLAUDE_CMD="claude --dangerously-skip-permissions"
+echo "[cockpit] Claude-Start: ${CLAUDE_CMD}"
 
 if tmux has-session -t cockpit 2>/dev/null; then
     echo "[cockpit] tmux-Session 'cockpit' existiert bereits"
 else
-    echo "[cockpit] Starte tmux-Session 'cockpit' mit claude"
+    echo "[cockpit] Starte tmux-Session 'cockpit'"
     tmux new-session -d -s cockpit -c /workspace \
         -e CLAUDE_AUTH_MODE="${CLAUDE_AUTH_MODE}" \
-        "claude; bash"
+        -e HA_TOKEN="${HA_TOKEN}" \
+        "${CLAUDE_CMD}; bash"
 fi
 
 # ---------------------------------------------------------------------------
