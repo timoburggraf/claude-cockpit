@@ -60,4 +60,10 @@ WORKDIR /workspace
 # Daher läuft der gesamte Container ab hier als non-root cockpit-User.
 USER cockpit
 
+# Native Installation in /home/cockpit/.local/ — Auto-Update funktioniert
+# erst damit zuverlässig (npm-global-Pfad gilt als "sudo-style installation"
+# und triggert die "Insufficient permissions"-Warning unabhängig von chown).
+ENV PATH="/home/cockpit/.local/bin:${PATH}"
+RUN claude install latest
+
 ENTRYPOINT ["/entrypoint.sh"]
